@@ -2,9 +2,10 @@ import streamlit as st
 from dotenv import load_dotenv
 
 # 사용자 정의 모듈 임포트
-from utils.db_manager import init_db, check_db_connection, get_all_bids, get_all_grants
+from utils.db_manager import init_db, check_db_connection, get_all_bids, get_all_grants, insert_contacts, get_all_contacts
 import modules.api_koneps as ak
 import modules.crawler_grants as cg
+import modules.crawler_contacts as cc
 import modules.doc_generator as dg
 from datetime import datetime, timedelta
 import pandas as pd
@@ -35,7 +36,7 @@ def main() -> None:
 
     # 3. 사이드바 구성
     st.sidebar.title("📌 PSIS 메뉴")
-    menu_options = ["대시보드", "타겟 학교 관리", "예산 흐름 모니터링", "과거 입찰 분석", "Spec-in 문서 자동 생성"]
+    menu_options = ["대시보드", "타겟 발굴 및 공략", "예산 흐름 모니터링", "과거 입찰 분석", "Spec-in 문서 자동 생성"]
     selected_menu = st.sidebar.radio("원하시는 작업을 선택하세요:", menu_options)
 
     # 4. 메인 콘텐츠 렌더링
@@ -52,45 +53,57 @@ def main() -> None:
         else:
             st.error("❌ 시스템 상태: 데이터베이스 연결에 실패했습니다. 경로와 권한을 확인하세요.")
 
-    elif selected_menu == "타겟 학교 관리":
-        st.subheader("🎯 타겟 학교 관리")
-        st.info("💡 3D CAD/디지털 트윈 영업의 타겟이 되는 학교들의 현황을 등록하고 관리합니다.")
+    elif selected_menu == "타겟 발굴 및 공략":
+        st.subheader("🎯 AI 타겟 교수 자동 발굴 및 공략")
+        st.info("💡 학교명만 입력하면, AI가 해당 학교의 공학계열 웹사이트를 탐색하여 3D CAD/디지털 트윈/스마트팩토리 관련 교수진의 연락처를 자동으로 수집합니다.")
 
-        # 레이아웃을 두 단으로 나눔 (입력 폼과 리스트뷰)
+        # 레이아웃 구성
         col1, col2 = st.columns([1, 2])
 
         with col1:
-            st.markdown("#### ✨ 신규 학교 등록")
-            with st.form("add_school_form", clear_on_submit=True):
-                school_name = st.text_input("학교명 (필수)", placeholder="예: 미래직업고등학교")
-                category = st.selectbox("구분", ["특성화고", "전문대", "4년제 대학", "직업전문학교", "기타"])
-                contact = st.text_input("담당자 / 연락처", placeholder="예: 김선생님, 010-1234-5678")
-                equipments = st.text_area("보유 장비 현황 (선택)", placeholder="예: AutoCAD 50카피, 3D 프린터 2대")
-                
-                submitted = st.form_submit_button("등록 완료")
-
-                if submitted:
-                    if school_name.strip() == "":
-                        st.error("🚫 학교명은 필수 입력 항목입니다.")
+            st.markdown("#### ✨ 타겟 자동 발굴")
+            school_name = st.text_input("타겟 학교명을 입력하세요 (예: 인하대학교)", placeholder="인하대학교")
+            
+            if st.button("타겟 교수 자동 발굴 🚀", use_container_width=True):
+                if not school_name.strip():
+                    st.error("🚫 학교명을 입력해주세요.")
+                else:
+                    with st.spinner(f"🔍 '{school_name}' 공학계열 학과 및 교수진 페이지를 검색 중입니다..."):
+                        urls = cc.search_faculty_urls(school_name)
+                        
+                    if not urls:
+                        st.error("해당 학교의 교수진 페이지를 찾을 수 없습니다. 검색 엔진 상태를 확인하세요.")
                     else:
-                        from utils.db_manager import insert_school
-                        # DB 삽입 로직
-                        if insert_school(school_name, category, contact, equipments):
-                            st.success(f"✅ '{school_name}' 데이터가 등록되었습니다!")
+                        st.success(f"🌐 총 {len(urls)}개의 유력한 학과 홈페이지를 발견했습니다!")
+                        st.info("AI(Gemini)가 각 페이지 텍스트를 읽고 타겟 교수를 파싱합니다. (최대 1~2분 소요)")
+                        
+                        all_professors = []
+                        progress_bar = st.progress(0, text="정보 추출 준비 중...")
+                        
+                        for i, url in enumerate(urls):
+                            progress_bar.progress((i) / len(urls), text=f"[{i+1}/{len(urls)}] 웹페이지 분석 중: {url[:40]}...")
+                            ext_profs = cc.extract_professors_with_llm(url, school_name)
+                            if ext_profs:
+                                all_professors.extend(ext_profs)
+                            
+                        progress_bar.progress(1.0, text="분석 완료!")
+                        
+                        if all_professors:
+                            inserted_count = insert_contacts(all_professors)
+                            st.success(f"🎉 완료! 총 {len(all_professors)}명의 타겟 교수를 발굴하여 {inserted_count}건의 신규 연락처를 DB에 저장했습니다!")
                         else:
-                            st.error("❌ 저장에 실패했습니다.")
+                            st.warning("⚠️ 발견된 페이지에서 3D/캐드/스마트팩토리 특화 교수 정보를 찾지 못했습니다.")
 
         with col2:
-            st.markdown("#### 📋 타겟 학교 현황 목록")
-            from utils.db_manager import get_all_schools
-            df_schools = get_all_schools()
+            st.markdown("#### 📋 발굴된 타겟 교수 현황")
+            df_contacts = get_all_contacts()
             
-            if not df_schools.empty:
-                st.dataframe(df_schools, use_container_width=True, hide_index=True)
-                csv_data = convert_df_to_csv(df_schools)
-                st.download_button(label="📥 엑셀(CSV) 다운로드", data=csv_data, file_name="target_schools.csv", mime="text/csv")
+            if not df_contacts.empty:
+                st.dataframe(df_contacts, use_container_width=True, hide_index=True)
+                csv_data = convert_df_to_csv(df_contacts)
+                st.download_button(label="📥 연락처 엑셀(CSV) 다운로드", data=csv_data, file_name="target_professors.csv", mime="text/csv")
             else:
-                st.warning("등록된 학교 데이터가 없습니다. 좌측에서 정보를 추가해주세요.")
+                st.info("아직 발굴된 타겟 교수가 없습니다. 좌측에서 학교명을 입력하고 발굴을 시작해보세요.")
 
     elif selected_menu == "예산 흐름 모니터링":
         st.subheader("💰 정부 지원 사업 수주 모니터링 (Money Trail)")

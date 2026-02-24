@@ -68,6 +68,21 @@ def init_db() -> None:
     except sqlite3.OperationalError:
         pass # 컬럼이 이미 존재하면 예외 발생, 무시함
 
+    # 4. contacts (타겟 교수 목록) 테이블 생성
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS contacts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            school_name TEXT NOT NULL,
+            name TEXT NOT NULL,
+            department TEXT,
+            email TEXT,
+            phone TEXT,
+            research_area TEXT,
+            source_url TEXT,
+            crawled_at TEXT
+        )
+    ''')
+
     conn.commit()
     conn.close()
 
@@ -191,6 +206,55 @@ def get_all_grants() -> pd.DataFrame:
     try:
         conn = sqlite3.connect(DB_PATH)
         df = pd.read_sql_query("SELECT * FROM grants ORDER BY id DESC", conn)
+        conn.close()
+        return df
+    except Exception:
+        return pd.DataFrame()
+
+def insert_contacts(contacts_list: list) -> int:
+    """
+    수집된 교수 연락처 리스트를 contacts 테이블에 삽입합니다. 이메일을 기준으로 단순 중복을 방지합니다.
+    """
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    count = 0
+    from datetime import datetime
+    crawled_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    for c in contacts_list:
+        email = c.get('email', '')
+        # 이메일이 있고 중복되면 건너뜀
+        if email and email.strip() != "":
+            cursor.execute("SELECT id FROM contacts WHERE email = ?", (email,))
+            if cursor.fetchone() is not None:
+                continue
+                
+        cursor.execute('''
+            INSERT INTO contacts (school_name, name, department, email, phone, research_area, source_url, crawled_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            c.get('school_name', ''),
+            c.get('name', ''),
+            c.get('department', ''),
+            email,
+            c.get('phone', ''),
+            c.get('research_area', ''),
+            c.get('source_url', ''),
+            crawled_at
+        ))
+        count += 1
+        
+    conn.commit()
+    conn.close()
+    return count
+
+def get_all_contacts() -> pd.DataFrame:
+    """
+    contacts 테이블의 모든 교수 데이터를 pandas DataFrame으로 반환합니다.
+    """
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        df = pd.read_sql_query("SELECT * FROM contacts ORDER BY id DESC", conn)
         conn.close()
         return df
     except Exception:
