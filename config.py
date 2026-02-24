@@ -7,16 +7,36 @@ load_dotenv()
 # 데이터 포털 API 키
 KONEPS_API_KEY = os.getenv("KONEPS_API_KEY", "").strip()
 
-# Google Gemini API 키
-try:
-    import streamlit as st
-    GEMINI_API_KEY = (os.getenv("GEMINI_API_KEY") or st.secrets.get("GEMINI_API_KEY", "")).strip()
-except Exception:
-    GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
+# ==========================================
+# [중요] API 키 로드 최적화 (공백/오류 방지)
+# 1순위: Streamlit Secrets (클라우드 배포용)
+# 2순위: os.getenv (로컬 .env 파일용)
+# ==========================================
 
-# Tavily API 키 (환경 변수 또는 Streamlit Secrets 병행 사용 가능하도록)
+# 1. Google Gemini API 키
+GEMINI_API_KEY = ""
 try:
     import streamlit as st
-    TAVILY_API_KEY = (os.getenv("TAVILY_API_KEY") or st.secrets.get("TAVILY_API_KEY", "")).strip()
+    if "GEMINI_API_KEY" in st.secrets:
+        GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
 except Exception:
-    TAVILY_API_KEY = os.getenv("TAVILY_API_KEY", "").strip()
+    pass
+
+if not GEMINI_API_KEY:
+    GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+    
+GEMINI_API_KEY = GEMINI_API_KEY.strip()
+
+# 2. Tavily API 키
+TAVILY_API_KEY = ""
+try:
+    import streamlit as st
+    if "TAVILY_API_KEY" in st.secrets:
+        TAVILY_API_KEY = st.secrets["TAVILY_API_KEY"]
+except Exception:
+    pass
+
+if not TAVILY_API_KEY:
+    TAVILY_API_KEY = os.getenv("TAVILY_API_KEY", "")
+
+TAVILY_API_KEY = TAVILY_API_KEY.strip()
