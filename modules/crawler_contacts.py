@@ -35,9 +35,9 @@ def search_and_extract_professors(school_name: str) -> list:
     if not combined_content.strip():
         return []
 
-    if not GEMINI_API_KEY:
-        print("[ERROR] GEMINI_API_KEY is missing.")
-        raise Exception("시스템 설정 에러: Gemini API 키가 누락되었습니다.")
+    if not GEMINI_API_KEY or len(GEMINI_API_KEY) < 20:
+        print("[ERROR] GEMINI_API_KEY is missing or invalid.")
+        raise Exception("Gemini API 키가 누락되었거나 유효하지 않습니다.\n💡 해결 방법: Streamlit Cloud 대시보드의 [Settings] > [Secrets] 메뉴에 들어가서 올바른 'GEMINI_API_KEY = \"발급받은키\"'를 입력하고 저장해 주세요.")
 
     prompt = f"""
 다음 텍스트는 '{school_name}'의 3D CAD, 설계, 제조, 디자인, 디지털 트윈, 시뮬레이션, 스마트팩토리 등과 관련된 학과의 홈페이지 및 교수진 정보 검색 결과야.
@@ -64,7 +64,7 @@ def search_and_extract_professors(school_name: str) -> list:
 [검색 결과 내용 끝]
 """
 
-    api_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
+    api_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}"
     payload = {
         "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {"temperature": 0.1, "maxOutputTokens": 2048}

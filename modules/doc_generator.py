@@ -10,7 +10,7 @@ def generate_spec_in_document(school_name: str, project_name: str, budget: str, 
     if not GEMINI_API_KEY:
         return "⚠️ 오류: GEMINI_API_KEY가 등록되지 않았습니다. .env 파일이나 config 설정을 확인하고 다시 실행해 주세요."
         
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}"
     
     headers = {
         "Content-Type": "application/json"
