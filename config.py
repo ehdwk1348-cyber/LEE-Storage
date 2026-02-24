@@ -5,18 +5,18 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # 데이터 포털 API 키
-KONEPS_API_KEY = os.getenv("KONEPS_API_KEY", "")
+KONEPS_API_KEY = os.getenv("KONEPS_API_KEY", "").strip()
 
 # Google Gemini API 키
 try:
     import streamlit as st
-    GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") or st.secrets.get("GEMINI_API_KEY", "")
+    GEMINI_API_KEY = (os.getenv("GEMINI_API_KEY") or st.secrets.get("GEMINI_API_KEY", "")).strip()
 except Exception:
-    GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+    GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
 
 # Tavily API 키 (환경 변수 또는 Streamlit Secrets 병행 사용 가능하도록)
 try:
     import streamlit as st
-    TAVILY_API_KEY = os.getenv("TAVILY_API_KEY") or st.secrets.get("TAVILY_API_KEY", "")
+    TAVILY_API_KEY = (os.getenv("TAVILY_API_KEY") or st.secrets.get("TAVILY_API_KEY", "")).strip()
 except Exception:
-    TAVILY_API_KEY = os.getenv("TAVILY_API_KEY", "")
+    TAVILY_API_KEY = os.getenv("TAVILY_API_KEY", "").strip()
