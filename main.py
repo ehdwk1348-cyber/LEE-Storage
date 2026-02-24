@@ -69,35 +69,15 @@ def main() -> None:
                     st.error("🚫 학교명을 입력해주세요.")
                 else:
                     try:
-                        with st.spinner(f"🔍 '{school_name}' 공학계열 학과 및 교수진 페이지를 검색 중입니다..."):
-                            urls = cc.search_faculty_urls(school_name)
+                        with st.spinner(f"🔍 '{school_name}' 교수진 정보 통합 검색 및 AI 분석 중... (최대 1분 소요)"):
+                            # Tavily Search + Gemini LLM 연동 모듈 호출
+                            all_professors = cc.search_and_extract_professors(school_name)
                             
-                        if not urls:
-                            st.error(f"❌ '{school_name}'의 교수진 페이지를 찾지 못했습니다.")
-                            query = f'{school_name} "기계공학과" OR "건축공학과" OR "산업공학과" "교수" "이메일"'
-                            search_url = f"https://www.google.com/search?q={query.replace(' ', '+')}"
-                            st.markdown(f"🔍 **시스템이 시도한 검색체계:** `{query}`")
-                            st.info(f"💡 위 검색어에 대해 구글 검색 엔진이 응답하지 않고 있습니다. [여기 클릭]({search_url})해서 구글이 정상 작동하는지 확인해 보세요.")
+                        if not all_professors:
+                            st.warning(f"⚠️ '{school_name}'의 유효한 3D/캐드/스마트팩토리 관련 교수 정보를 찾지 못했습니다.")
                         else:
-                            st.success(f"🌐 총 {len(urls)}개의 유력한 학과 홈페이지를 발견했습니다!")
-                            st.info("AI(Gemini)가 각 페이지 텍스트를 읽고 타겟 교수를 파싱합니다. (최대 1~2분 소요)")
-                            
-                            all_professors = []
-                            progress_bar = st.progress(0, text="정보 추출 준비 중...")
-                            
-                            for i, url in enumerate(urls):
-                                progress_bar.progress((i) / len(urls), text=f"[{i+1}/{len(urls)}] 웹페이지 분석 중: {url[:40]}...")
-                                ext_profs = cc.extract_professors_with_llm(url, school_name)
-                                if ext_profs:
-                                    all_professors.extend(ext_profs)
-                                
-                            progress_bar.progress(1.0, text="분석 완료!")
-                            
-                            if all_professors:
-                                inserted_count = insert_contacts(all_professors)
-                                st.success(f"🎉 완료! 총 {len(all_professors)}명의 타겟 교수를 발굴하여 {inserted_count}건의 신규 연락처를 DB에 저장했습니다!")
-                            else:
-                                st.warning("⚠️ 발견된 페이지에서 3D/캐드/스마트팩토리 특화 교수 정보를 찾지 못했습니다.")
+                            inserted_count = insert_contacts(all_professors)
+                            st.success(f"🎉 완료! 총 {len(all_professors)}명의 타겟 교수를 발굴하여 {inserted_count}건의 신규 연락처를 DB에 저장했습니다!")
                     except Exception as e:
                         st.error(f"❌ 검색 및 추출 중 오류가 발생했습니다: {e}")
 
