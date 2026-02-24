@@ -64,7 +64,7 @@ def main() -> None:
             st.markdown("#### ✨ 타겟 자동 발굴")
             school_name = st.text_input("타겟 학교명을 입력하세요 (예: 인하대학교)", placeholder="인하대학교")
             
-            if st.button("타겟 교수 자동 발굴 🚀", use_container_width=True):
+            if st.button("타겟 교수 자동 발굴 🚀", width="stretch"):
                 if not school_name.strip():
                     st.error("🚫 학교명을 입력해주세요.")
                 else:
@@ -102,7 +102,7 @@ def main() -> None:
             df_contacts = get_all_contacts()
             
             if not df_contacts.empty:
-                st.dataframe(df_contacts, use_container_width=True, hide_index=True)
+                st.dataframe(df_contacts, width="stretch", hide_index=True)
                 csv_data = convert_df_to_csv(df_contacts)
                 st.download_button(label="📥 연락처 엑셀(CSV) 다운로드", data=csv_data, file_name="target_professors.csv", mime="text/csv")
             else:
@@ -114,7 +114,7 @@ def main() -> None:
         
         col1, col2 = st.columns([1, 1])
         with col1:
-            if st.button("🌐 최신 지원사업 뉴스 크롤링", use_container_width=True):
+            if st.button("🌐 최신 지원사업 뉴스 크롤링", width="stretch"):
                 with st.spinner("기존 데이터를 비우고 최신 뉴스를 새로 갱신 중입니다..."):
                     try:
                         import sqlite3, os
@@ -144,7 +144,7 @@ def main() -> None:
             # 컬럼명 보기 좋게 변경 및 링크 컬럼 설정
             st.dataframe(
                 df_grants, 
-                use_container_width=True, 
+                width="stretch", 
                 hide_index=True,
                 column_config={
                     "project_name": "사업명/기사제목",
@@ -180,7 +180,7 @@ def main() -> None:
         # 데이터 수집 버튼부
         col1, col2, col3 = st.columns(3)
         with col1:
-            if st.button("🔄 최근 공고 수집 (7일)", use_container_width=True):
+            if st.button("🔄 최근 공고 수집 (7일)", width="stretch"):
                 with st.spinner("최근 7일 조달청 API를 호출 중입니다..."):
                     try:
                         added_count = ak.fetch_recent_bids(days=7)
@@ -189,7 +189,7 @@ def main() -> None:
                         st.error(f"❌ 데이터 수집 중 오류: {str(e)}")
 
         with col2:
-            if st.button("⏪ 과거 공고 수집 (5년)", use_container_width=True):
+            if st.button("⏪ 과거 공고 수집 (5년)", width="stretch"):
                 st_placeholder = st.empty()
                 with st.spinner("과거 5년 치 조달청 API를 호출 중입니다... (최대 1~2분 소요)"):
                     try:
@@ -201,7 +201,7 @@ def main() -> None:
                         st.error(f"❌ 과거 데이터 수집 중 오류: {str(e)}")
                         
         with col3:
-            if st.button("🚀 사전규격 탐색 (초기영업)", use_container_width=True):
+            if st.button("🚀 사전규격 탐색 (초기영업)", width="stretch"):
                 with st.spinner("정식 입찰 전 단계(사전규격)의 타겟 학교를 찾고 있습니다..."):
                     try:
                         added_count = ak.fetch_pre_spec_bids(30)
@@ -234,7 +234,7 @@ def main() -> None:
                 st.warning(f"⚠️ 총 {len(target_df)}건의 교체/유지보수 타겟 이력이 발견되었습니다. 적극적인 선제 영업을 권장합니다.")
                 # 표시를 위해 날짜 형식을 문자열로 복원
                 target_df['contract_date'] = target_df['contract_date'].dt.strftime('%Y-%m-%d')
-                st.dataframe(target_df, use_container_width=True, hide_index=True)
+                st.dataframe(target_df, width="stretch", hide_index=True)
                 
                 csv_target = convert_df_to_csv(target_df)
                 st.download_button(label="📥 교체 타겟 엑셀(CSV) 다운로드", data=csv_target, file_name="target_bids.csv", mime="text/csv")
@@ -243,7 +243,7 @@ def main() -> None:
                 
             st.markdown("### 📝 전체 수집된 입찰 이력 데이터 백업")
             df_bids['contract_date'] = df_bids['contract_date'].dt.strftime('%Y-%m-%d')
-            st.dataframe(df_bids, use_container_width=True, hide_index=True)
+            st.dataframe(df_bids, width="stretch", hide_index=True)
             
             csv_all_bids = convert_df_to_csv(df_bids)
             st.download_button(label="📥 전체 입찰 이력 엑셀(CSV) 다운로드", data=csv_all_bids, file_name="all_bids_history.csv", mime="text/csv")
