@@ -68,31 +68,34 @@ def main() -> None:
                 if not school_name.strip():
                     st.error("🚫 학교명을 입력해주세요.")
                 else:
-                    with st.spinner(f"🔍 '{school_name}' 공학계열 학과 및 교수진 페이지를 검색 중입니다..."):
-                        urls = cc.search_faculty_urls(school_name)
-                        
-                    if not urls:
-                        st.error("해당 학교의 교수진 페이지를 찾을 수 없습니다. 검색 엔진 상태를 확인하세요.")
-                    else:
-                        st.success(f"🌐 총 {len(urls)}개의 유력한 학과 홈페이지를 발견했습니다!")
-                        st.info("AI(Gemini)가 각 페이지 텍스트를 읽고 타겟 교수를 파싱합니다. (최대 1~2분 소요)")
-                        
-                        all_professors = []
-                        progress_bar = st.progress(0, text="정보 추출 준비 중...")
-                        
-                        for i, url in enumerate(urls):
-                            progress_bar.progress((i) / len(urls), text=f"[{i+1}/{len(urls)}] 웹페이지 분석 중: {url[:40]}...")
-                            ext_profs = cc.extract_professors_with_llm(url, school_name)
-                            if ext_profs:
-                                all_professors.extend(ext_profs)
+                    try:
+                        with st.spinner(f"🔍 '{school_name}' 공학계열 학과 및 교수진 페이지를 검색 중입니다..."):
+                            urls = cc.search_faculty_urls(school_name)
                             
-                        progress_bar.progress(1.0, text="분석 완료!")
-                        
-                        if all_professors:
-                            inserted_count = insert_contacts(all_professors)
-                            st.success(f"🎉 완료! 총 {len(all_professors)}명의 타겟 교수를 발굴하여 {inserted_count}건의 신규 연락처를 DB에 저장했습니다!")
+                        if not urls:
+                            st.error("해당 학교의 교수진 페이지를 찾을 수 없습니다. 검색 엔진 상태를 확인하세요.")
                         else:
-                            st.warning("⚠️ 발견된 페이지에서 3D/캐드/스마트팩토리 특화 교수 정보를 찾지 못했습니다.")
+                            st.success(f"🌐 총 {len(urls)}개의 유력한 학과 홈페이지를 발견했습니다!")
+                            st.info("AI(Gemini)가 각 페이지 텍스트를 읽고 타겟 교수를 파싱합니다. (최대 1~2분 소요)")
+                            
+                            all_professors = []
+                            progress_bar = st.progress(0, text="정보 추출 준비 중...")
+                            
+                            for i, url in enumerate(urls):
+                                progress_bar.progress((i) / len(urls), text=f"[{i+1}/{len(urls)}] 웹페이지 분석 중: {url[:40]}...")
+                                ext_profs = cc.extract_professors_with_llm(url, school_name)
+                                if ext_profs:
+                                    all_professors.extend(ext_profs)
+                                
+                            progress_bar.progress(1.0, text="분석 완료!")
+                            
+                            if all_professors:
+                                inserted_count = insert_contacts(all_professors)
+                                st.success(f"🎉 완료! 총 {len(all_professors)}명의 타겟 교수를 발굴하여 {inserted_count}건의 신규 연락처를 DB에 저장했습니다!")
+                            else:
+                                st.warning("⚠️ 발견된 페이지에서 3D/캐드/스마트팩토리 특화 교수 정보를 찾지 못했습니다.")
+                    except Exception as e:
+                        st.error(f"❌ 검색 및 추출 중 오류가 발생했습니다: {e}")
 
         with col2:
             st.markdown("#### 📋 발굴된 타겟 교수 현황")
