@@ -87,20 +87,38 @@ def main() -> None:
 
     elif selected_menu == "예산 흐름 모니터링":
         st.subheader("💰 정부 지원 사업 수주 모니터링 (Money Trail)")
-        st.info("💡 LINC 3.0, RISE, 혁신지원사업 등 주요 예산을 확보한 타겟 대학교의 최신 뉴스 및 공고를 실시간 추적합니다.")
+        st.info("💡 주요 정부 지원 사업 검색어를 통해 최신 뉴스를 수집합니다. 새로운 필터 기준을 적용하려면 초기화 후 다시 검색하세요.")
         
-        col1, col2 = st.columns([1, 1])
+        col1, col2, col3 = st.columns([1, 1, 1])
         with col1:
             if st.button("🌐 최신 지원사업 뉴스 크롤링", use_container_width=True):
-                with st.spinner("구글 뉴스 및 포털에서 주요 사업 선정 대학을 검색 중입니다..."):
+                with st.spinner("네이버 뉴스에서 주요 사업 선정 대학을 검색 중입니다..."):
                     try:
                         news_count = cg.fetch_grant_news()
-                        st.success(f"✅ 웹 크롤링 완료! {news_count}건의 새로운 사업 선정 소식이 감지되었습니다.")
+                        if news_count > 0:
+                            st.success(f"✅ 웹 크롤링 완료! {news_count}건의 새로운 사업 선정 소식이 감지되었습니다.")
+                        else:
+                            st.info("새로 추가된 유효한 선정 뉴스가 없거나 최신 상태입니다.")
                     except Exception as e:
                         st.error(f"❌ 크롤링 중 오류가 발생했습니다: {str(e)}")
         
         with col2:
-             st.markdown("🎯 **영업 팁:** 선정 대학 리스트가 뜨면 담당 부서에 연락해 축하 인사를 건네며 관련 솔루션 도입(Spec-in)을 즉시 제안하세요.")
+             st.markdown("🎯 **영업 팁:** 사업명/선정학교가 확인되면 담당 부서에 메일 제안을 띄워보세요.")
+             
+        with col3:
+             if st.button("🗑️ 뉴스 데이터 전체 초기화", use_container_width=True):
+                 try:
+                     import sqlite3, os
+                     DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'db', 'sales_data.db')
+                     conn = sqlite3.connect(DB_PATH)
+                     cursor = conn.cursor()
+                     cursor.execute('DELETE FROM grants')
+                     conn.commit()
+                     conn.close()
+                     st.success("✅ 뉴스 데이터가 초기화되었습니다. 다시 크롤링을 진행해 주세요.")
+                     st.rerun()
+                 except Exception as e:
+                     st.error(f"초기화 오류: {e}")
         
         st.markdown("---")
         st.markdown("### 📰 실시간 정부 지원 사업 감지 보드")
