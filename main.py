@@ -9,6 +9,11 @@ import modules.doc_generator as dg
 from datetime import datetime, timedelta
 import pandas as pd
 
+@st.cache_data
+def convert_df_to_csv(df):
+    """데이터프레임을 한글 깨짐 없는 CSV(Excel 호환) 바이트로 변환합니다."""
+    return df.to_csv(index=False).encode('utf-8-sig')
+
 def main() -> None:
     """
     Streamlit 대시보드의 메인 진입점 함수입니다.
@@ -82,6 +87,8 @@ def main() -> None:
             
             if not df_schools.empty:
                 st.dataframe(df_schools, use_container_width=True, hide_index=True)
+                csv_data = convert_df_to_csv(df_schools)
+                st.download_button(label="📥 엑셀(CSV) 다운로드", data=csv_data, file_name="target_schools.csv", mime="text/csv")
             else:
                 st.warning("등록된 학교 데이터가 없습니다. 좌측에서 정보를 추가해주세요.")
 
@@ -134,6 +141,10 @@ def main() -> None:
                 }
             )
             
+            # 다운로드 버튼 추가
+            csv_data = convert_df_to_csv(df_grants)
+            st.download_button(label="📥 수집 목록 엑셀(CSV) 다운로드", data=csv_data, file_name="grant_news.csv", mime="text/csv")
+
             # 액션 제안
             st.markdown("#### ⚡ 신규 수주 대학 대상 메일 캠페인")
             latest_school = df_grants.iloc[0]['selected_school']
@@ -208,12 +219,18 @@ def main() -> None:
                 # 표시를 위해 날짜 형식을 문자열로 복원
                 target_df['contract_date'] = target_df['contract_date'].dt.strftime('%Y-%m-%d')
                 st.dataframe(target_df, use_container_width=True, hide_index=True)
+                
+                csv_target = convert_df_to_csv(target_df)
+                st.download_button(label="📥 교체 타겟 엑셀(CSV) 다운로드", data=csv_target, file_name="target_bids.csv", mime="text/csv")
             else:
                 st.info("현재 3~5년 차 교체 주기에 해당하는 타겟 기관이 데이터에 없습니다.")
                 
             st.markdown("### 📝 전체 수집된 입찰 이력 데이터 백업")
             df_bids['contract_date'] = df_bids['contract_date'].dt.strftime('%Y-%m-%d')
             st.dataframe(df_bids, use_container_width=True, hide_index=True)
+            
+            csv_all_bids = convert_df_to_csv(df_bids)
+            st.download_button(label="📥 전체 입찰 이력 엑셀(CSV) 다운로드", data=csv_all_bids, file_name="all_bids_history.csv", mime="text/csv")
             
         else:
             st.warning("현재 저장된 데이터가 없습니다. 상단의 수집기 버튼을 눌러 데이터를 불러오세요.")
@@ -222,14 +239,35 @@ def main() -> None:
         st.subheader("📝 Spec-in 문서 자동 생성기 (Helper)")
         st.info("💡 타겟 학교와 예산 정보를 넣으면, 교수님과 행정실이 복사해서 기안으로 쓸 수 있는 '도입 품의서/시방서'가 1분 만에 완성됩니다.")
         
+        # DB 연동: 최근 사업 수주 내역 가져오기
+        df_grants = get_all_grants()
+        school_options = ["직접 입력"]
+        if not df_grants.empty:
+            grants_list = df_grants['selected_school'] + " (" + df_grants['project_name'] + ")"
+            school_options.extend(grants_list.tolist())
+
         col1, col2 = st.columns([1, 1.5])
         
         with col1:
             st.markdown("#### ⚙️ 제안 조건 입력")
+            
+            # DB 기반 드롭다운 선택
+            selected_target = st.selectbox("📂 수집된 국고 사업 리스트에서 선택 (자동 입력)", school_options)
+            
+            auto_school = ""
+            auto_project = ""
+            auto_budget = ""
+            
+            if selected_target != "직접 입력":
+                idx = school_options.index(selected_target) - 1
+                auto_school = df_grants.iloc[idx]['selected_school']
+                auto_project = df_grants.iloc[idx]['project_name']
+                auto_budget = df_grants.iloc[idx]['budget_scale']
+                
             with st.form("doc_gen_form"):
-                school = st.text_input("타겟 학교명", placeholder="한국대학교")
-                project = st.text_input("정부 지원 사업명", placeholder="LINC 3.0 산학연협력 선도대학 육성사업")
-                budget = st.text_input("확보/추정 예산", placeholder="약 10억 원")
+                school = st.text_input("타겟 학교명", value=auto_school, placeholder="한국대학교")
+                project = st.text_input("정부 지원 사업명", value=auto_project, placeholder="LINC 3.0 산학연협력 선도대학 육성사업")
+                budget = st.text_input("확보/추정 예산", value=auto_budget, placeholder="약 10억 원")
                 solution = st.text_input("당사 제안 솔루션명", placeholder="3DEXPERIENCE / 스마트팩토리 통합 솔루션")
                 extra = st.text_area("추가 강조 소구점 (선택)", placeholder="유지보수 3년 무상, 취업 연계 프로그램 제공 등")
                 
