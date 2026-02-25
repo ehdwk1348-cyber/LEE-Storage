@@ -39,6 +39,20 @@ def main() -> None:
     menu_options = ["대시보드", "타겟 발굴 및 공략", "예산 흐름 모니터링", "과거 입찰 분석", "Spec-in 문서 자동 생성"]
     selected_menu = st.sidebar.radio("원하시는 작업을 선택하세요:", menu_options)
 
+    # --- 시스템 진단 도구 (API Key 400 에러 해결용) ---
+    with st.sidebar.expander("🛠️ 시스템 진단 (API 상태)"):
+        from config import GEMINI_API_KEY, TAVILY_API_KEY
+        
+        def mask_key(k):
+            if not k: return "❌ 키 없음"
+            if len(k) < 10: return "⚠️ 너무 짧음"
+            return f"{k[:5]}...{k[-5:]}"
+
+        st.markdown("**현재 인식된 API 키 값:**")
+        st.code(f"GEMINI : {mask_key(GEMINI_API_KEY)}\nTAVILY : {mask_key(TAVILY_API_KEY)}", language="text")
+        st.caption("주의: GEMINI 끝자리가 '-bo'가 아니라면 Streamlit Cloud의 Secrets 설정이 갱신되지 않은 것입니다.")
+    # -----------------------------------------------
+
     # 4. 메인 콘텐츠 렌더링
     st.title("🏛️ 공공 영업 지능형 대시보드 (PSIS)")
     st.markdown("---")
