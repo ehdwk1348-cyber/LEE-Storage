@@ -1,3 +1,28 @@
+def build_reference_card_prompt(school_name: str, solution_name: str, project_name: str,
+                                contract_year: str, budget: str, outcome: str) -> str:
+    """
+    납품 레퍼런스 카드(1장짜리 소개자료) 생성용 프롬프트를 구성합니다.
+    """
+    return f"""당신은 3D CAD 및 디지털 트윈 솔루션 공급사의 마케팅 전문가입니다.
+아래 납품 실적 정보를 바탕으로 잠재 고객(교수, 행정 담당자)에게 공유할 수 있는
+**1장짜리 레퍼런스 카드(납품 실적 소개서)**를 마크다운 형식으로 작성해주세요.
+
+[납품 실적 정보]
+- 납품 기관: {school_name}
+- 도입 솔루션: {solution_name}
+- 연계 사업명: {project_name}
+- 납품 연도: {contract_year}
+- 사업 규모: {budget}
+- 도입 성과 및 특이사항: {outcome}
+
+[작성 가이드]
+1. 제목은 눈길을 끄는 한 줄 헤드라인으로 작성.
+2. 도입 배경 / 구축 내용 / 도입 효과(정량+정성) / 고객사 한마디(추정 인용구) 순으로 구성.
+3. 마지막에 '문의하기' CTA(Call to Action) 문구 포함.
+4. 전체 분량: A4 1장 수준(500자 내외).
+"""
+
+
 def build_spec_in_prompt(school_name: str, project_name: str, budget: str, solution_name: str, extra_points: str) -> str:
     """
     LLM(Gemini) 모델에 전달할 시스템/사용자 통합 텍스트 프롬프트를 구성합니다.

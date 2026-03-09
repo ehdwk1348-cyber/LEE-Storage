@@ -1,0 +1,12 @@
+[theme]
+# 하나티에스 브랜드 컬러 기반 다크 테마
+base = "dark"
+primaryColor = "#00A3E0"
+backgroundColor = "#0D1117"
+secondaryBackgroundColor = "#161B22"
+textColor = "#E6EDF3"
+font = "sans serif"
+
+[server]
+port = 8501
+headless = true

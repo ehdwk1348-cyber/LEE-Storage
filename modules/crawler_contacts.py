@@ -1,104 +1,229 @@
-import os
+"""
+교수·담당자 연락처 수집 모듈
+(주)하나티에스 영업 타겟에 최적화된 검색 쿼리 적용
+
+■ 학교 유형별 검색 전략
+  [대학교 / 전문대]
+    - 기계공학과, 기계설계학과, 산업공학과, 메카트로닉스학과
+    - 스마트팩토리, 디지털트윈, 정밀기계 전공 교수
+    - 산학협력단 담당자, LINC·RISE 사업단 교수
+
+  [특성화고 / 마이스터고]
+    - 기계과, 자동화과, 기계설계과, 메카트로닉스과 담당교사
+    - 실습부장, 교무부장, 취업지원부 (의사결정자)
+    - 교육청 담당 장학사 (예산 흐름 파악용)
+
+■ Tavily → Gemini 파이프라인
+  Tavily로 웹 검색 → Gemini가 구조화된 JSON으로 파싱
+"""
 import json
 import re
 import requests
 from tavily import TavilyClient
 from config import GEMINI_API_KEY, TAVILY_API_KEY
 
-def search_and_extract_professors(school_name: str) -> list:
-    """
-    Tavily API를 사용하여 검색 결과를 요약/추출한 뒤, Gemini LLM을 통해 교수 정보를 파싱합니다.
-    """
-    if not TAVILY_API_KEY:
-        print("[ERROR] TAVILY_API_KEY가 설정되지 않았습니다.")
-        raise Exception("시스템 설정 에러: Tavily API 키가 누락되었습니다.")
-        
-    query = f"{school_name} 기계공학과 OR 건축공학과 교수진 이름 이메일 연락처 연구분야"
-    
-    try:
-        client = TavilyClient(api_key=TAVILY_API_KEY)
-        # HTML 스크래핑 대신 Tavily의 본문 추출(content) 기능을 바로 사용
-        response = client.search(query=query, search_depth="advanced", include_raw_content=False, max_results=3)
-        
-        results = response.get("results", [])
-        if not results:
-            print("[INFO] Tavily 검색 결과가 없습니다.")
-            return []
-            
-        # Tavily가 반환한 양질의 웹페이지 요약/본문(content)을 하나로 합침
-        combined_content = "\n\n".join([r.get("content", "") for r in results])
-        
-    except Exception as e:
-        print(f"\n[ERROR] 상세 에러 로그 (Tavily 검색 실패): {e}\n")
-        raise Exception(f"Tavily API 검색 중 오류 발생: {e}")
-        
-    if not combined_content.strip():
-        return []
+# ──────────────────────────────────────────────
+# 학교 유형 판별
+# ──────────────────────────────────────────────
 
-    if not GEMINI_API_KEY or len(GEMINI_API_KEY) < 20:
-        print("[ERROR] GEMINI_API_KEY is missing or invalid.")
-        raise Exception("Gemini API 키가 누락되었거나 유효하지 않습니다.\n💡 해결 방법: Streamlit Cloud 대시보드의 [Settings] > [Secrets] 메뉴에 들어가서 올바른 'GEMINI_API_KEY = \"발급받은키\"'를 입력하고 저장해 주세요.")
+_VOCATIONAL_KEYWORDS = ['고등학교', '마이스터고', '특성화고', '공업고', '기술고', '공고']
+_COLLEGE_KEYWORDS    = ['전문대', '폴리텍', '직업전문학교']
 
-    prompt = f"""
-다음 텍스트는 '{school_name}'의 3D CAD, 설계, 제조, 디자인, 디지털 트윈, 시뮬레이션, 스마트팩토리 등과 관련된 학과의 홈페이지 및 교수진 정보 검색 결과야.
-여기서 해당 분야와 관련성이 있을 법한 과목을 가르치거나 연구할 가능성이 있는 교수들의 정보를 추출해줘.
 
-추출한 정보는 반드시 아래 형식의 유효한 JSON 배열(Array)로만 응답해야 해. 다른 부가 설명이나 코드블록(```json) 마크다운을 절대 포함하지 말고 순수 JSON만 반환해.
+def _school_type(school_name: str) -> str:
+    """학교명으로 유형을 판별합니다."""
+    for kw in _VOCATIONAL_KEYWORDS:
+        if kw in school_name:
+            return 'vocational'   # 특성화고·마이스터고
+    for kw in _COLLEGE_KEYWORDS:
+        if kw in school_name:
+            return 'college'      # 전문대·폴리텍
+    return 'university'           # 4년제 대학 (기본)
+
+
+# ──────────────────────────────────────────────
+# 학교 유형별 검색 쿼리 생성
+# ──────────────────────────────────────────────
+
+def _build_queries(school_name: str) -> list[str]:
+    """학교 유형에 따라 최적화된 Tavily 검색 쿼리 목록을 반환합니다."""
+    stype = _school_type(school_name)
+
+    if stype == 'vocational':
+        # 특성화고·마이스터고: 담당교사·실습부장·교무부장이 키맨
+        return [
+            f"{school_name} 기계과 기계설계과 담당교사 이메일",
+            f"{school_name} 실습부장 메카트로닉스 자동화과 연락처",
+            f"{school_name} 교무부장 취업지원부 연락처 이메일",
+            f"{school_name} CAD 실습 담당교사",
+        ]
+    elif stype == 'college':
+        # 전문대·폴리텍: 학과장 + 산학협력 담당자
+        return [
+            f"{school_name} 기계계열 학과장 교수 이메일 연락처",
+            f"{school_name} 메카트로닉스 스마트팩토리 교수 연락처",
+            f"{school_name} 산학협력처 담당자 이메일",
+            f"{school_name} CAD 3D 설계 교수 이메일",
+        ]
+    else:
+        # 4년제 대학: 교수 + 산학협력단 + 사업단 담당자
+        return [
+            f"{school_name} 기계공학과 기계설계 교수진 이메일 연락처",
+            f"{school_name} 산업공학과 스마트팩토리 교수 이메일",
+            f"{school_name} 메카트로닉스 정밀기계 교수 연락처",
+            f"{school_name} LINC RISE 사업단 담당 교수 연락처",
+            f"{school_name} 산학협력단 기계 설계 담당자 이메일",
+        ]
+
+
+# ──────────────────────────────────────────────
+# Gemini 파싱 프롬프트 생성
+# ──────────────────────────────────────────────
+
+def _build_prompt(school_name: str, content: str) -> str:
+    stype = _school_type(school_name)
+
+    if stype == 'vocational':
+        target_desc = (
+            "기계과·기계설계과·메카트로닉스과·자동화과 담당교사, 실습부장, "
+            "교무부장, 취업지원부 담당자"
+        )
+    elif stype == 'college':
+        target_desc = (
+            "기계계열 학과장, 스마트팩토리·CAD 담당 교수, 산학협력처 담당자"
+        )
+    else:
+        target_desc = (
+            "기계공학과·산업공학과·메카트로닉스학과 교수, "
+            "스마트팩토리·디지털트윈·3D CAD 관련 연구 교수, "
+            "LINC·RISE 사업단 담당 교수, 산학협력단 담당자"
+        )
+
+    return f"""
+다음은 '{school_name}' 관련 웹 검색 결과야.
+
+이 학교에서 3D CAD(CATIA, SolidWorks), 스마트팩토리, 디지털트윈, 기계설계 소프트웨어 도입에
+관여할 가능성이 높은 담당자 정보를 추출해줘.
+
+추출 대상: {target_desc}
+
+반드시 아래 형식의 유효한 JSON 배열만 반환해. 마크다운(```json)이나 부가 설명은 절대 포함하지 마.
 
 [
   {{
     "school_name": "{school_name}",
-    "name": "이름",
-    "department": "소속학과",
-    "email": "이메일주소",
-    "phone": "전화번호",
-    "research_area": "연구분야 또는 학과",
-    "source_url": "Tavily Search 결과"
+    "name": "이름 (없으면 빈 문자열)",
+    "department": "소속 학과·부서",
+    "email": "이메일 (없으면 빈 문자열)",
+    "phone": "전화번호 (없으면 빈 문자열)",
+    "research_area": "연구분야 또는 담당업무",
+    "source_url": "출처 URL"
   }}
 ]
 
-텍스트 내에서 해당하는 교수 정보를 찾을 수 없거나 관련 없다고 판단되면 빈 배열 [] 을 반환해.
+관련 정보가 없으면 빈 배열 [] 을 반환해.
 
-[검색 결과 내용 시작]
-{combined_content}
-[검색 결과 내용 끝]
+[검색 결과]
+{content}
+[끝]
 """
 
-    api_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}"
+
+# ──────────────────────────────────────────────
+# 메인 함수
+# ──────────────────────────────────────────────
+
+def search_and_extract_professors(school_name: str) -> list:
+    """
+    Tavily 검색 + Gemini 파싱으로 학교 유형에 맞는 담당자 정보를 수집합니다.
+    반환값: [{"school_name", "name", "department", "email", ...}, ...]
+    """
+    if not TAVILY_API_KEY:
+        raise Exception("TAVILY_API_KEY가 누락되었습니다.")
+    if not GEMINI_API_KEY or len(GEMINI_API_KEY) < 20:
+        raise Exception("GEMINI_API_KEY가 누락되었거나 유효하지 않습니다.")
+
+    queries = _build_queries(school_name)
+
+    # ── Tavily 검색 ──
+    client = TavilyClient(api_key=TAVILY_API_KEY)
+    all_content_parts = []
+
+    for query in queries:
+        try:
+            res = client.search(
+                query=query,
+                search_depth="advanced",
+                include_raw_content=False,
+                max_results=3,
+            )
+            for r in res.get("results", []):
+                text = r.get("content", "").strip()
+                if text:
+                    all_content_parts.append(f"[출처: {r.get('url','')}]\n{text}")
+        except Exception as e:
+            print(f"[Tavily 오류] {query}: {e}")
+            continue
+
+    if not all_content_parts:
+        return []
+
+    # 중복 제거 후 합치기 (Gemini 토큰 절약)
+    combined = "\n\n".join(all_content_parts[:6])   # 최대 6개 결과 사용
+
+    # ── Gemini 파싱 ──
+    prompt  = _build_prompt(school_name, combined)
+    api_url = (
+        f"https://generativelanguage.googleapis.com/v1beta"
+        f"/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}"
+    )
     payload = {
-        "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {"temperature": 0.1, "maxOutputTokens": 2048}
+        "contents":       [{"parts": [{"text": prompt}]}],
+        "generationConfig": {"temperature": 0.1, "maxOutputTokens": 4096},
     }
-    
+
     try:
-        res = requests.post(api_url, headers={"Content-Type": "application/json"}, json=payload, timeout=30)
-        if res.status_code == 200:
-            data = res.json()
-            candidates = data.get("candidates", [])
-            if candidates:
-                content = candidates[0].get("content", {}).get("parts", [])
-                if content:
-                    result_text = content[0].get("text", "")
-                    
-                    # JSON 배열 부분 정규식 추출
-                    match = re.search(r'\[.*\]', result_text, re.DOTALL)
-                    if match:
-                        json_str = match.group(0)
-                        try:
-                            parsed_list = json.loads(json_str)
-                            return parsed_list
-                        except json.JSONDecodeError as je:
-                            print(f"\n[ERROR] 상세 에러 로그 (JSON 파싱 에러): {je}\nResult: {json_str}\n")
-                            raise Exception(f"AI 응답 JSON 처리 중 오류: {je}")
-                    else:
-                        print(f"\n[ERROR] 상세 에러 로그 (JSON 배열 패턴 찾기 못함): {result_text}\n")
-                        return []
-        else:
-            err_msg = f"API Error {res.status_code}: {res.text}"
-            print(f"\n[ERROR] 상세 에러 로그 (LLM API 호출 실패): {err_msg}\n")
-            raise Exception(err_msg)
+        res = requests.post(
+            api_url,
+            headers={"Content-Type": "application/json"},
+            json=payload,
+            timeout=60,
+        )
     except Exception as e:
-        print(f"\n[ERROR] 상세 에러 로그 (LLM 데이터 추출 중 오류): {e}\n")
-        raise Exception(f"LLM AI 분석 중 오류: {e}")
-    
-    return []
+        raise Exception(f"Gemini API 호출 오류: {e}")
+
+    if res.status_code != 200:
+        raise Exception(f"Gemini API 에러 [{res.status_code}]: {res.text[:200]}")
+
+    parts = (
+        res.json()
+        .get("candidates", [{}])[0]
+        .get("content", {})
+        .get("parts", [])
+    )
+    if not parts:
+        return []
+
+    raw_text = parts[0].get("text", "")
+
+    # 마크다운 코드블록 제거
+    cleaned = re.sub(r'```(?:json)?\s*', '', raw_text).replace('```', '').strip()
+
+    start = cleaned.find('[')
+    if start == -1:
+        return []
+
+    json_str = cleaned[start:]
+
+    # 완전한 JSON 파싱 시도
+    try:
+        return json.loads(json_str)
+    except json.JSONDecodeError:
+        # 잘린 경우 마지막 완전한 객체까지 복구
+        last = json_str.rfind('}')
+        if last == -1:
+            return []
+        try:
+            return json.loads(json_str[:last + 1] + ']')
+        except json.JSONDecodeError as e:
+            raise Exception(f"AI 응답 JSON 파싱 실패: {e}")
